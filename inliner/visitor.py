@@ -1,6 +1,46 @@
 import ast
 from collections import defaultdict
 import astunparse
+import copy
+import math
+
+
+class linenoCollector(ast.NodeVisitor):
+    def __init__(self):
+        self.linenoList = []
+
+    def generic_visit(self, node):
+        if isinstance(node, ast.stmt):
+            if hasattr(node, "lineno"):
+                self.linenoList.append(node.lineno)
+            else:
+                self.linenoList.append(math.inf)
+        ast.NodeVisitor.generic_visit(self, node)
+    
+    def getLinenoList(self):
+        retList = copy.deepcopy(self.linenoList)
+        self.linenoList = []
+        return retList
+
+class linenoMappingVisitor(ast.NodeVisitor):
+    def __init__(self, inputLinenoQueue):
+        self.linenoQueue = inputLinenoQueue
+        self.linenoMap = dict()
+
+    def generic_visit(self, node):
+        if isinstance(node, ast.stmt):
+            if len(self.linenoQueue) == 0:
+                return
+            curLineno = node.lineno
+            originalLineno = self.linenoQueue.pop(0)
+            if originalLineno != math.inf:
+                curListLineno = self.linenoMap.get(originalLineno, [])
+                curListLineno.append(curLineno)
+                self.linenoMap[originalLineno] = curListLineno
+        ast.NodeVisitor.generic_visit(self, node)
+            
+    def getLinenoMap(self):
+        return self.linenoMap
 
 
 class ReNameVariableVisitor(ast.NodeTransformer):

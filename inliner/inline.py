@@ -3,13 +3,13 @@ import astpretty
 import utils
 import astor
 import astunparse
+import pprint
 import copy
 from visitor import *
 from symbolHelper import *
 
 # Project Config
-path = "test/lr.py"
-# path = "test/unitTest/lc_crteo.py"
+path = "inlineTest/lr.py"
 # function which we will not inline
 blackListFuncList = ["main", "append"]
 mainFuncName = "main"
@@ -46,11 +46,6 @@ def CalleeArgProcess(callNode, funcNode):
         argMap[argNode.arg] = callNode.args[i]
 
     curFuncNode = ReplaceParamVisitor(argMap).visit(curFuncNode)
-    # inlineAgain = False
-    # for _, nameObject in argMap.items():
-    #     if nameObject.id in definedFuncNameList:
-    #         inlineAgain = True
-    # if inlineAgain:
     curFuncNode.body = InlineBody(curFuncNode.body)
     return curFuncNode
 
@@ -234,18 +229,30 @@ srcModule = ReNameVariableVisitor(renameVisitorFuncName, blackListFuncList).visi
 # extend definedFuncs before extend the main functions
 definedFuncNameList = updateFuncOrderAndBlackList(definedFuncNameList, funcNameToNodeMap, mainFuncName)
 
-# for definedFuncName in definedFuncNameList:
-#     defineFuncDefNode = funcNameToNodeMap[definedFuncName]
-#     defineFuncDefNode.body = InlineBody(defineFuncDefNode.body)
-#     funcNameToNodeMap[definedFuncName] = defineFuncDefNode
 
 mainFuncDefNode = funcNameToNodeMap[mainFuncName]
-mainFuncDefNode.body = InlineBody(mainFuncDefNode.body)
+bodyToPrint = InlineBody(mainFuncDefNode.body)
+# collect original lineno
+linenoVisitor = linenoCollector()
+stmtLinenoList = []
+for bodyStmt in bodyToPrint:
+    linenoVisitor.visit(bodyStmt)
+    curLinenoList = linenoVisitor.getLinenoList()
+    print(astunparse.unparse(bodyStmt))
+    print(curLinenoList)
+    stmtLinenoList.extend(curLinenoList)
+mainFuncDefNode.body = bodyToPrint
 InlineModule(srcModule, mainFuncName)
+# output code
 code = astunparse.unparse(srcModule)
-print(code)
+# generate mapper
+srcModuleInlined = ast.parse(code)
+funcNameToNodeMap = utils.getFuncNameToNodeMap(srcModuleInlined.body)
+inlinedMainFuncDefNode = funcNameToNodeMap[mainFuncName]
+linenoMappingUpdate = linenoMappingVisitor(stmtLinenoList)
+for inlineStmt in inlinedMainFuncDefNode.body:
+    linenoMappingUpdate.visit(inlineStmt)
 
-# mainFuncDefNode.body = InlineBody(mainFuncDefNode.body)
-# print(mainFuncDefNode.body)
-# code = astor.to_source(mainFuncDefNode)
-# print(code)
+# mapper 
+pp = pprint.PrettyPrinter(indent=4)
+pp.pprint(linenoMappingUpdate.getLinenoMap())
