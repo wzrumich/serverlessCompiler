@@ -7,9 +7,10 @@ import pprint
 import copy
 from visitor import *
 from symbolHelper import *
+import json 
 
 # Project Config
-path = "inlineTest/lr.py"
+path = "/Users/ishaanpota/Desktop/serverlessCompiler/inliner/inlineTest/lr.py"
 # function which we will not inline
 blackListFuncList = ["main", "append"]
 mainFuncName = "main"
@@ -238,13 +239,17 @@ stmtLinenoList = []
 for bodyStmt in bodyToPrint:
     linenoVisitor.visit(bodyStmt)
     curLinenoList = linenoVisitor.getLinenoList()
-    print(astunparse.unparse(bodyStmt))
-    print(curLinenoList)
+    #print(astunparse.unparse(bodyStmt))
+    #print(curLinenoList)
     stmtLinenoList.extend(curLinenoList)
 mainFuncDefNode.body = bodyToPrint
 InlineModule(srcModule, mainFuncName)
 # output code
 code = astunparse.unparse(srcModule)
+inlineCode = open("inlinedCode.py","w")
+inlineCode.write(code)
+inlineCode.close()
+print(code)
 # generate mapper
 srcModuleInlined = ast.parse(code)
 funcNameToNodeMap = utils.getFuncNameToNodeMap(srcModuleInlined.body)
@@ -254,5 +259,9 @@ for inlineStmt in inlinedMainFuncDefNode.body:
     linenoMappingUpdate.visit(inlineStmt)
 
 # mapper 
-pp = pprint.PrettyPrinter(indent=4)
-pp.pprint(linenoMappingUpdate.getLinenoMap())
+# pp = pprint.PrettyPrinter(indent=4)
+# pp.pprint(linenoMappingUpdate.getLinenoMap())
+
+mapJson = json.dumps(linenoMappingUpdate.getLinenoMap())
+
+print(mapJson)
