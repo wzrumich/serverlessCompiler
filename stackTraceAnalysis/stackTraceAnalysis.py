@@ -39,19 +39,23 @@ def variablesReadInCodeBlock(codeblock1):
     res1 = set()
     print("here")
     for anode in ast.walk(ast.parse(codeblock1)):
-        
-        
-    
-        
+            
+       
         if type(anode).__name__ == 'Assign':
             if type(anode.value).__name__ == 'Name':
                 res1.add(anode.value.id)
-                
             
             
         elif type(anode).__name__ == 'For':
+            
             if type(anode.target).__name__ == 'Name':
                 res1.add(anode.target.id)
+        elif type(anode).__name__ == 'Call':
+            for el in anode.args:
+                if type(el).__name__ == 'Name':
+                    res1.add(el.id)
+
+        
 
     #print(res1)
     
@@ -65,11 +69,14 @@ def variablesWrittenInCodeBlock(codeblock1):
     for anode in ast.walk(ast.parse(codeblock1)):
         
         if type(anode).__name__ == 'Assign':
-            
-            res1.update(t.id for t in anode.targets if type(t).__name__ == 'Name')
+            for t in anode.targets:
+                
+                if type(t).__name__ == 'Name':
+                    res1.add(t.id)
         elif type(anode).__name__ == 'For':
             if type(anode.target).__name__ == 'Name':
                 res1.add(anode.target.id)
+            
     
     
     return res1
@@ -182,7 +189,7 @@ def stackTraceCodeMapper(stacktraces, filename, remoteVars):
     #Note that a function can be called multiple times, so the lineMap is going to a map a line in the old code to a list of lines in the new code,
     #currently treating it like a number
 
-    print(computeBlocks)
+    
 
     for computeBlock in computeBlocks:
         newLineNos = []
@@ -193,10 +200,18 @@ def stackTraceCodeMapper(stacktraces, filename, remoteVars):
         computeBlocksInlined.append(newLineNos)
 
 
-    print(computeBlocksInlined)
+    #print(computeBlocksInlined)
     #print(lineMap.keys())
 
-    computeBlocksInlined[0].append(17) #Discuss mapper with Zerui
+    for j in range(0,len(computeBlocksInlined)):
+        for i in computeBlocksInlined[j]:
+            if i+2 in computeBlocksInlined[j] and i+1 not in computeBlocksInlined[j]:
+                computeBlocksInlined[j].append(i+1)
+        
+        if j+1 <len(computeBlocksInlined) and max(computeBlocksInlined[j]) - min(computeBlocksInlined[j+1]) == -2:
+            computeBlocksInlined[j].append((max(computeBlocksInlined[j]) + 1))
+
+
 
 
     #Now, use the newLineNos to separate the code into two compute blocks and do dependency analysis between them, replacing all variable accesses with remote accesses
@@ -239,6 +254,10 @@ def stackTraceCodeMapper(stacktraces, filename, remoteVars):
 
         varWrittenList = []
         varWrittenList = variablesWrittenInCodeBlock(DAG[i])
+        print(i)
+        print("Data for this block")
+        print("The variables written in this block are")
+        print(varWrittenList)
         remoteWriteVars = []
 
         for var in varWrittenList:
@@ -248,6 +267,11 @@ def stackTraceCodeMapper(stacktraces, filename, remoteVars):
         varReadList = []
         varReadList = variablesReadInCodeBlock(DAG[i])
         remoteReadVars = []
+        print("The variables read in this block are")
+        print(varReadList)
+
+
+       
 
         for var in varWrittenList:
             if var in remoteVars: #Automatically adds the vars the user has decided to be remote
@@ -256,27 +280,28 @@ def stackTraceCodeMapper(stacktraces, filename, remoteVars):
 
 
         for j in range(i+1,len(DAG)):
-            varReadList = []
-            varReadList = variablesReadInCodeBlock(DAG[j])
+            varReadListInner = []
+            varReadListInner = variablesReadInCodeBlock(DAG[j])
         
-            for var in varReadList:
+            for var in varReadListInner:
                 if var in varWrittenList:
                     remoteWriteVars.append(var)
+
         
 
         for k in range(i-1,-1,-1):
-            varWriteList = []
-            varWriteList = variablesWrittenInCodeBlock(DAG[k])
+            varWriteListInner = []
+            varWriteListInner = variablesWrittenInCodeBlock(DAG[k])
 
-            for var in varWriteList:
+            for var in varWriteListInner:
                 if var in varReadList:
                     remoteReadVars.append(var)
+
+        
         
         print("========")
         s = ""
 
-        print(remoteReadVars)
-        print(remoteWriteVars)
 
         finalComputeBlock = ""
 
@@ -314,7 +339,7 @@ def stackTraceCodeMapper(stacktraces, filename, remoteVars):
             else:
                 r += "    " + "context_dict[\"" + remoteWriteVars[k] + "\"]" + "=" + remoteWriteVars[k] + "\n"
         
-        print(r)
+        #print(r)
 
         
 
@@ -330,7 +355,11 @@ def stackTraceCodeMapper(stacktraces, filename, remoteVars):
 
 
 
-        print(DAG[i])
+        #print(DAG[i])
+        blockName = "app" + str(i) + ".py"
+        f = open(blockName, "a")
+        f.write(DAG[i])
+        f.close()
 
 
 
